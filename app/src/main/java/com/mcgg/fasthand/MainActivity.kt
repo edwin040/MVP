@@ -115,10 +115,19 @@ class MainActivity : AppCompatActivity() {
         }
         val accessLp = LinearLayout.LayoutParams(-1, dp(44)); accessLp.topMargin = dp(7)
         root.addView(accessibility, accessLp)
+        if (!BuildConfig.ENABLE_FULL_FEATURES) {
+            launch.isEnabled = false
+            launch.alpha = 0.45f
+            launch.text = "FLOATING CONTROL • EDISI FULL"
+            accessibility.isEnabled = false
+            accessibility.alpha = 0.45f
+            accessibility.text = "AKSESIBILITAS TIDAK DIPAKAI DI LITE"
+        }
         accessibility.setOnClickListener {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            if (BuildConfig.ENABLE_FULL_FEATURES) startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
         launch.setOnClickListener {
+            if (!BuildConfig.ENABLE_FULL_FEATURES) return@setOnClickListener
             prefs.edit().putStringSet("selected_heroes", HashSet(selected))
                 .putInt("commander", commander.selectedItemPosition)
                 .putBoolean("level9", levelNine.isChecked).apply()
@@ -128,7 +137,11 @@ class MainActivity : AppCompatActivity() {
                 ContextCompat.startForegroundService(this, Intent(this, OverlayService::class.java))
             }
         }
-        val note = text("Deteksi aplikasi depan: aktifkan izin Aksesibilitas. Auto Roll akan terkunci otomatis di luar Magic Chess: Go Go; fungsi pengenalan papan dan aksi game masih dalam pengembangan.", 11f, 0xFF8FA5B6.toInt())
+        val noteText = if (BuildConfig.ENABLE_FULL_FEATURES)
+            "Edisi Full memakai Accessibility dan floating overlay untuk deteksi aplikasi depan. Pengenalan papan dan aksi game otomatis belum tersedia."
+        else
+            "Edisi Lite tidak meminta izin Accessibility atau floating overlay. Setup hero dapat disimpan; kontrol mengambang tidak tersedia."
+        val note = text(noteText, 11f, 0xFF8FA5B6.toInt())
         note.setPadding(dp(2), dp(10), dp(2), 0); root.addView(note)
         setContentView(root)
         renderHeroes(heroes)
