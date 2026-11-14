@@ -1,4 +1,4 @@
-name: Android Debug APK
+name: Android APK Editions
 on:
   push:
     branches: [ main ]
@@ -22,13 +22,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
-      - name: Verify APK
-        run: test -s app/build/outputs/apk/debug/app-debug.apk
-      - name: Upload APK
+      - name: Build Lite and Full debug APKs
+        run: gradle --no-daemon assembleLiteDebug assembleFullDebug
+      - name: Verify APK outputs
+        run: |
+          test -s app/build/outputs/apk/lite/debug/app-lite-debug.apk
+          test -s app/build/outputs/apk/full/debug/app-full-debug.apk
+      - name: Upload Lite APK
         uses: actions/upload-artifact@v4
         with:
-          name: MCGG-FAST-HAND-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: MCGG-FAST-HAND-Lite
+          path: app/build/outputs/apk/lite/debug/app-lite-debug.apk
+          if-no-files-found: error
+      - name: Upload Full APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MCGG-FAST-HAND-Full
+          path: app/build/outputs/apk/full/debug/app-full-debug.apk
           if-no-files-found: error
