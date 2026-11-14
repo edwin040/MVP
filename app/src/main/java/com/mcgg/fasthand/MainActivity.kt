@@ -7,6 +7,7 @@ import android.provider.Settings
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.RectF
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
@@ -48,6 +49,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var commander: Spinner
     private lateinit var levelNine: CheckBox
     private lateinit var ocrOutput: TextView
+    private lateinit var visualOutput: TextView
+    private lateinit var cropFields: List<EditText>
+    private lateinit var visualHero: Spinner
+    private var visualAction: String = "enroll"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,6 +80,43 @@ class MainActivity : AppCompatActivity() {
                         ocrOutput.text = "OCR gagal: ${error.localizedMessage ?: "gambar tidak dapat dibaca"}"
                     }
                 )
+            }
+        }
+        val visualPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) {
+                val crop = readVisualCrop()
+                val heroName = visualHero.selectedItem?.toString().orEmpty()
+                visualOutput.text = "Memproses gambar referensi..."
+                Thread {
+                    try {
+                        if (visualAction == "enroll") {
+                            HeroVisualMatcher.enroll(this, uri, heroName, crop)
+                            runOnUiThread {
+                                visualOutput.text = "Referensi $heroName tersimpan. Total template: ${HeroVisualMatcher.templateCount(this)}. Gunakan crop yang sama saat pengujian."
+                            }
+                        } else {
+                            val matches = HeroVisualMatcher.match(this, uri, crop)
+                            runOnUiThread {
+                                visualOutput.text = if (matches.isEmpty()) {
+                                    "Belum ada template. Simpan portrait hero terlebih dahulu."
+                                } else {
+                                    val rows = matches.mapIndexed { index, match ->
+                                        val score = (match.score * 100).toInt()
+                                        "${index + 1}. ${match.heroName} — ${score}%"
+                                    }
+                                    val top = matches.first()
+                                    val status = if (top.score >= 0.82f) "KANDIDAT KUAT" else "UNKNOWN • BELUM YAKIN"
+                                    "$status\n" + rows.joinToString("\n") +
+                                        "\nCatatan: skor kemiripan visual, bukan probabilitas identitas."
+                                }
+                            }
+                        }
+                    } catch (error: Exception) {
+                        runOnUiThread {
+                            visualOutput.text = "Pengenalan visual gagal: ${error.localizedMessage ?: "gambar tidak valid"}"
+                        }
+                    }
+                }.start()
             }
         }
         selected.addAll(prefs.getStringSet("selected_heroes", emptySet()) ?: emptySet())
@@ -134,6 +176,62 @@ class MainActivity : AppCompatActivity() {
         ocrOutput = text("Pengenalan hero: pilih screenshot MCGG untuk memulai pengujian OCR.", 10.5f, 0xFFB8CAD8.toInt())
         ocrOutput.setPadding(dp(4), dp(8), dp(4), dp(8))
         root.addView(ocrOutput)
+        val visualTitle = text("PENGENALAN HERO DARI GAMBAR", 13f, 0xFF78DCC0.toInt(), true)
+        visualTitle.setPadding(0, dp(12), 0, dp(5))
+        root.addView(visualTitle)
+        val visualHint = text(
+            "Pilih hero, lalu masukkan area portrait sebagai koordinat relatif X, Y, Lebar, Tinggi (0–1). Contoh: 0.16, 0.23, 0.07, 0.13. Simpan referensi dari katalog yang identitasnya kamu ketahui.",
+            10.5f, 0xFFB8CAD8.toInt()
+        )
+        root.addView(visualHint)
+        visualHero = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, heroes.map { it.name })
+        }
+        root.addView(visualHero, LinearLayout.LayoutParams(-1, dp(42)))
+        val cropRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val labels = listOf("X", "Y", "W", "H")
+        val defaults = listOf("0.16", "0.23", "0.07", "0.13")
+        cropFields = labels.indices.map { index ->
+            EditText(this).apply {
+                hint = labels[index]
+                setSingleLine(true)
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                    android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                setText(defaults[index])
+                textSize = 12f
+                setTextColor(Color.WHITE)
+                setHintTextColor(0xFF91A6B7.toInt())
+                background = rounded(0xFF1B3043.toInt(), 9)
+                setPadding(dp(7), 0, dp(7), 0)
+            }.also { field ->
+                val lp = LinearLayout.LayoutParams(0, dp(42), 1f)
+                lp.setMargins(dp(2), dp(4), dp(2), dp(4))
+                cropRow.addView(field, lp)
+            }
+        }
+        root.addView(cropRow)
+        val enrollButton = Button(this).apply {
+            text = "SIMPAN PORTRAIT SEBAGAI REFERENSI"; isAllCaps = false
+            background = rounded(0xFF315B78.toInt(), 12); setTextColor(Color.WHITE)
+        }
+        root.addView(enrollButton, LinearLayout.LayoutParams(-1, dp(44)))
+        val matchButton = Button(this).apply {
+            text = "COCOKKAN GAMBAR DENGAN DATABASE"; isAllCaps = false
+            background = rounded(0xFF176A60.toInt(), 12); setTextColor(Color.WHITE)
+        }
+        val matchLp = LinearLayout.LayoutParams(-1, dp(44)); matchLp.topMargin = dp(5)
+        root.addView(matchButton, matchLp)
+        visualOutput = text("Template tersimpan: 0. Hasil pencocokan hanya kandidat dan belum mengendalikan Auto Roll.", 10.5f, 0xFFB8CAD8.toInt())
+        visualOutput.setPadding(dp(4), dp(8), dp(4), dp(8))
+        root.addView(visualOutput)
+        enrollButton.setOnClickListener {
+            visualAction = "enroll"
+            visualPicker.launch("image/*")
+        }
+        matchButton.setOnClickListener {
+            visualAction = "match"
+            visualPicker.launch("image/*")
+        }
         ocrButton.setOnClickListener { screenshotPicker.launch("image/*") }
         save.setOnClickListener {
             prefs.edit().putStringSet("selected_heroes", HashSet(selected))
@@ -190,6 +288,17 @@ class MainActivity : AppCompatActivity() {
             }
             override fun afterTextChanged(s: Editable?) {}
         })
+    }
+
+    private fun readVisualCrop(): RectF {
+        val values = cropFields.map { it.text.toString().toFloatOrNull()
+            ?: throw IllegalArgumentException("Isi X, Y, W, H dengan angka 0–1.") }
+        val (x, y, width, height) = values
+        if (x < 0f || y < 0f || width <= 0f || height <= 0f ||
+            x + width > 1f || y + height > 1f) {
+            throw IllegalArgumentException("Area crop harus berada dalam batas 0–1.")
+        }
+        return RectF(x, y, x + width, y + height)
     }
 
     private fun renderHeroes(items: List<HeroItem>) {
