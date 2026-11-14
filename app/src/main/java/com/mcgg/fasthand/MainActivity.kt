@@ -15,6 +15,7 @@ import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import com.squareup.picasso.Picasso
 
 data class HeroItem(val name: String, val gold: Int) {
@@ -46,9 +47,32 @@ class MainActivity : AppCompatActivity() {
     private lateinit var selectedLabel: TextView
     private lateinit var commander: Spinner
     private lateinit var levelNine: CheckBox
+    private lateinit var ocrOutput: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val screenshotPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) {
+                ocrOutput.text = "OCR sedang membaca screenshot..."
+                HeroOcrAnalyzer.analyze(
+                    this, uri, heroes.map { it.name },
+                    onSuccess = { analysis ->
+                        val lines = analysis.matches.take(8).map { match ->
+                            val percent = (match.similarity * 100).toInt()
+                            "• ${match.heroName} — ${percent}% cocok (teks: ${match.recognizedText})"
+                        }
+                        ocrOutput.text = if (lines.isEmpty()) {
+                            "Belum ada nama hero yang cocok. Pastikan screenshot tajam dan nama hero terlihat.\nTeks OCR: ${analysis.fullText.take(180)}"
+                        } else {
+                            "HASIL PENGENALAN HERO (perlu verifikasi):\n" + lines.joinToString("\n")
+                        }
+                    },
+                    onFailure = { error ->
+                        ocrOutput.text = "OCR gagal: ${error.localizedMessage ?: "gambar tidak dapat dibaca"}"
+                    }
+                )
+            }
+        }
         selected.addAll(prefs.getStringSet("selected_heroes", emptySet()) ?: emptySet())
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -97,6 +121,16 @@ class MainActivity : AppCompatActivity() {
             background = rounded(0xFF168D78.toInt(), 14); setTextColor(Color.WHITE)
         }
         root.addView(save, LinearLayout.LayoutParams(-1, dp(48)))
+        val ocrButton = Button(this).apply {
+            text = "UJI OCR & KENALI HERO DARI SCREENSHOT"; isAllCaps = false
+            background = rounded(0xFF315B78.toInt(), 14); setTextColor(Color.WHITE)
+        }
+        val ocrLp = LinearLayout.LayoutParams(-1, dp(46)); ocrLp.topMargin = dp(7)
+        root.addView(ocrButton, ocrLp)
+        ocrOutput = text("Pengenalan hero: pilih screenshot MCGG untuk memulai pengujian OCR.", 10.5f, 0xFFB8CAD8.toInt())
+        ocrOutput.setPadding(dp(4), dp(8), dp(4), dp(8))
+        root.addView(ocrOutput)
+        ocrButton.setOnClickListener { screenshotPicker.launch("image/*") }
         save.setOnClickListener {
             prefs.edit().putStringSet("selected_heroes", HashSet(selected))
                 .putInt("commander", commander.selectedItemPosition)
