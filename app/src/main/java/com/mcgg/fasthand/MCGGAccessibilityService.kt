@@ -21,7 +21,7 @@ class MCGGAccessibilityService : AccessibilityService() {
             event.eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED) return
         val isGame = packageName == GAME_PACKAGE
         sendBroadcast(Intent(ACTION_GAME_FOREGROUND)
-            .setPackage(packageName = this.packageName)
+            .setPackage(this.packageName)
             .putExtra(EXTRA_IS_GAME, isGame))
     }
 
