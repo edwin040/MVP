@@ -40,4 +40,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.squareup.picasso:picasso:2.8")
+    // Bundled on-device Latin OCR model: no cloud upload or runtime model download.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 }
