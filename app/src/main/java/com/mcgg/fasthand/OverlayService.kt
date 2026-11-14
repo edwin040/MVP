@@ -9,12 +9,23 @@ import android.os.Build
 import android.os.IBinder
 import android.view.*
 import android.widget.*
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 
 class OverlayService : Service() {
     companion object { const val ACTION_CLOSE = "com.mcgg.fasthand.CLOSE_FLOATING" }
     private lateinit var wm: WindowManager
     private var panel: View? = null
     private var enabled = false
+    private var gameForeground = false
+    private val gameReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            gameForeground = intent?.getBooleanExtra(MCGGAccessibilityService.EXTRA_IS_GAME, false) == true
+            if (!gameForeground) enabled = false
+            refreshStatus()
+        }
+    }
     private var status: TextView? = null
     private var toggle: Button? = null
 
@@ -93,7 +104,7 @@ class OverlayService : Service() {
             toggle?.text = if (enabled) "OFF" else "ON"
         }
         stop.setOnClickListener {
-            enabled = false; toggle?.text = "ON"; status?.text = "● STOPPED"
+            enabled = false; refreshStatus(); status?.text = "● STOPPED"
         }
         mini.setOnClickListener { minimize() }
         header.setOnTouchListener(dragListener())
@@ -101,7 +112,7 @@ class OverlayService : Service() {
         wm.addView(box, params())
     }
 
-    private fun dragListener() = object : View.OnTouchListener {
+    private fun refreshStatus() {\n        status?.text = when {\n            enabled && gameForeground -> "● MCGG TERDETEKSI • AUTO ON"\n            !gameForeground -> "● TERKUNCI • BUKA MCGG"\n            else -> "● MCGG AKTIF • AUTO OFF"\n        }\n        toggle?.text = if (enabled) "OFF" else "ON"\n        toggle?.isEnabled = gameForeground\n        toggle?.alpha = if (gameForeground) 1f else 0.45f\n    }\n\n    private fun dragListener() = object : View.OnTouchListener {
         var sx=0f; var sy=0f; var ox=0; var oy=0
         override fun onTouch(v: View, e: MotionEvent): Boolean {
             val lp = panel?.layoutParams as? WindowManager.LayoutParams ?: return false
