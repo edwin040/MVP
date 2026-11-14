@@ -1,11 +1,11 @@
 package com.mcgg.fasthand
 
 /**
- * Deterministic decision rules for the MCGG auto-roll loop.
+ * Conservative, single-step decision engine for the MCGG automation loop.
  *
- * This class deliberately does not tap the game. A screen-recognition layer must supply
- * detections and a separately permissioned interaction layer must execute the returned
- * actions. Unknown/low-confidence detections are never sold.
+ * The caller must obtain fresh screen detections after EVERY action. This engine never
+ * batches taps: one action is returned so the caller can verify the resulting game state.
+ * Unknown or low-confidence detections are never sold or purchased.
  */
 object AutoRollStrategy {
     enum class Commander { GUINEVERE, OTHER, UNKNOWN }
@@ -50,6 +50,14 @@ object AutoRollStrategy {
     private const val HERO_CONFIDENCE = 0.97f
     private const val COMMANDER_CONFIDENCE = 0.97f
 
+    private fun normalized(value: String): String =
+        value.trim().lowercase().replace(Regex("[^a-z0-9]"), "")
+
+    private fun isLocked(name: String, locked: Set<String>): Boolean {
+        val key = normalized(name)
+        return locked.any { normalized(it) == key }
+    }
+
     fun plan(snapshot: MatchSnapshot): List<PlannedAction> {
         if (!snapshot.autoEnabled) {
             return listOf(PlannedAction(ActionType.NO_OP, reason = "Auto Roll nonaktif"))
@@ -68,61 +76,71 @@ object AutoRollStrategy {
                 reason = "Semua target LOCK sudah selesai"))
         }
 
-        val actions = mutableListOf<PlannedAction>()
+        val known = snapshot.heroes.filter { it.confidence >= HERO_CONFIDENCE }
+        val uncertainShop = snapshot.heroes.any {
+            it.zone == Zone.SHOP && it.confidence < HERO_CONFIDENCE
+        }
 
-        // Never sell a hero unless both its identity and location are confidently detected.
-        // Apply this to both the bench and the deployed board as requested.
-        snapshot.heroes.asSequence()
-            .filter { it.zone == Zone.BENCH || it.zone == Zone.BOARD }
-            .filter { it.confidence >= HERO_CONFIDENCE }
-            .filter { it.name !in snapshot.lockedHeroes }
-            .forEach {
-                actions += PlannedAction(
-                    ActionType.SELL_NON_LOCKED_HERO, it.name, it.zone, it.slot,
-                    "Hero teridentifikasi jelas dan tidak termasuk LOCK"
-                )
-            }
-
-        // Buy all visible locked targets, but only when their identity is certain.
-        snapshot.heroes.asSequence()
-            .filter { it.zone == Zone.SHOP }
-            .filter { it.confidence >= HERO_CONFIDENCE }
-            .filter { it.name in snapshot.incompleteTargets && it.name in snapshot.lockedHeroes }
-            .forEach {
-                actions += PlannedAction(
-                    ActionType.BUY_LOCKED_HERO, it.name, Zone.SHOP, it.slot,
-                    "Hero target LOCK ditemukan di toko"
-                )
-            }
-
-        // Guinevere's free shop hero is handled specially: buy it, then sell it only if
-        // it is not LOCKed. A LOCKed free hero is retained as a target copy.
+        // Guinevere's free hero MUST be bought first. It is never sold while still in SHOP.
         if (snapshot.commander == Commander.GUINEVERE) {
-            snapshot.heroes.asSequence()
-                .filter { it.zone == Zone.SHOP && it.isFree && it.confidence >= HERO_CONFIDENCE }
-                .forEach {
-                    actions += PlannedAction(
-                        ActionType.BUY_FREE_GUINEVERE_HERO, it.name, Zone.SHOP, it.slot,
-                        if (it.name in snapshot.lockedHeroes)
-                            "Hero gratis Guinevere termasuk LOCK; beli dan simpan"
-                        else
-                            "Hero gratis Guinevere; beli dahulu, lalu jual setelah terdeteksi di bench"
-                    )
-                }
+            val freeHero = known.firstOrNull { it.zone == Zone.SHOP && it.isFree }
+            if (freeHero != null && !isLocked(freeHero.name, snapshot.lockedHeroes)) {
+                return listOf(PlannedAction(
+                    ActionType.BUY_FREE_GUINEVERE_HERO, freeHero.name, Zone.SHOP, freeHero.slot,
+                    "Beli hero gratis terlebih dahulu; evaluasi ulang setelah masuk bench"
+                ))
+            }
         }
 
-        if (actions.isEmpty()) {
-            actions += PlannedAction(
-                ActionType.REFRESH_SHOP,
-                reason = "Tidak ada target LOCK yang terlihat; refresh untuk mencari target"
-            )
+        // Only sell after the bought free hero is positively observed on the bench.
+        // The same conservative rule applies to all other non-LOCK bench/board heroes.
+        val sellCandidate = known.firstOrNull {
+            (it.zone == Zone.BENCH || it.zone == Zone.BOARD) &&
+                !isLocked(it.name, snapshot.lockedHeroes)
         }
-        return actions
+        if (sellCandidate != null) {
+            return listOf(PlannedAction(
+                ActionType.SELL_NON_LOCKED_HERO, sellCandidate.name,
+                sellCandidate.zone, sellCandidate.slot,
+                "Identitas dan lokasi terverifikasi; hero bukan anggota LOCK"
+            ))
+        }
+
+        // Process one locked shop target at a time, then require a fresh frame.
+        val target = known.firstOrNull {
+            it.zone == Zone.SHOP &&
+                snapshot.incompleteTargets.any { wanted -> normalized(wanted) == normalized(it.name) } &&
+                isLocked(it.name, snapshot.lockedHeroes)
+        }
+        if (target != null) {
+            return listOf(PlannedAction(
+                ActionType.BUY_LOCKED_HERO, target.name, Zone.SHOP, target.slot,
+                "Hero target LOCK ditemukan; beli satu lalu verifikasi ulang"
+            ))
+        }
+
+        // Never refresh while a shop slot is visible but its identity is uncertain.
+        if (uncertainShop) {
+            return listOf(PlannedAction(ActionType.WAIT_FOR_RECOGNITION,
+                reason = "Ada slot toko yang belum dikenali; tahan refresh sampai pemeriksaan ulang"))
+        }
+
+        // If Guinevere has a free slot but it could not be identified, do not skip it.
+        if (snapshot.commander == Commander.GUINEVERE &&
+            snapshot.heroes.any { it.zone == Zone.SHOP && it.isFree }) {
+            return listOf(PlannedAction(ActionType.WAIT_FOR_RECOGNITION,
+                reason = "Hero gratis Guinevere belum dikenali dengan yakin"))
+        }
+
+        return listOf(PlannedAction(
+            ActionType.REFRESH_SHOP,
+            reason = "Tidak ada target LOCK atau hero gratis yang perlu diproses"
+        ))
     }
 
     /** True only when a confidently identified bench/board hero is safe to sell. */
     fun maySell(detection: HeroDetection, lockedHeroes: Set<String>): Boolean =
         (detection.zone == Zone.BENCH || detection.zone == Zone.BOARD) &&
             detection.confidence >= HERO_CONFIDENCE &&
-            detection.name !in lockedHeroes
+            !isLocked(detection.name, lockedHeroes)
 }
