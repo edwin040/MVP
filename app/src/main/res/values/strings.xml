@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">MCGG FAST HAND</string>
+    <string name="accessibility_description">Mendeteksi apakah Magic Chess: Go Go sedang berada di depan agar Auto Roll terkunci di luar game.</string>
+</resources>
