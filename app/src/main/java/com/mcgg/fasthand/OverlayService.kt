@@ -19,6 +19,7 @@ class OverlayService : Service() {
     private var panel: View? = null
     private var enabled = false
     private var gameForeground = false
+    private var receiverRegistered = false
     private val gameReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             gameForeground = intent?.getBooleanExtra(MCGGAccessibilityService.EXTRA_IS_GAME, false) == true
@@ -48,6 +49,16 @@ class OverlayService : Service() {
         else Notification.Builder(this).setContentTitle("MCGG FAST HAND")
             .setSmallIcon(android.R.drawable.ic_media_play).addAction(android.R.drawable.ic_menu_close_clear_cancel, "Tutup floating", closeIntent).build()
         startForeground(41, notification)
+        val filter = IntentFilter(MCGGAccessibilityService.ACTION_GAME_FOREGROUND)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(gameReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(gameReceiver, filter)
+        }
+        receiverRegistered = true
+        // Do not depend on receiving a foreground event that may predate this service.
+        gameForeground = MCGGAccessibilityService.isGameForeground
         showPanel()
     }
 
@@ -177,6 +188,10 @@ class OverlayService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) { super.onTaskRemoved(rootIntent) }
     override fun onDestroy() {
+        if (receiverRegistered) {
+            try { unregisterReceiver(gameReceiver) } catch (_: Exception) {}
+            receiverRegistered = false
+        }
         enabled = false
         panel?.let { try { wm.removeView(it) } catch (_: Exception) {} }
         panel = null
