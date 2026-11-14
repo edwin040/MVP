@@ -109,6 +109,8 @@ class ScreenCaptureService : Service() {
             if (Build.VERSION.SDK_INT >= 33) registerReceiver(gameReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             else @Suppress("DEPRECATION") registerReceiver(gameReceiver, filter)
             receiverRegistered = true
+            // A broadcast may have happened before this service registered its receiver.
+            gameForeground = MCGGAccessibilityService.isGameForeground
 
             val metrics = DisplayMetrics()
             @Suppress("DEPRECATION")
@@ -172,7 +174,7 @@ class ScreenCaptureService : Service() {
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                 reader?.surface, null, handler
             )
-            sendStatus("Screen capture aktif • menunggu MCGG di depan")
+            sendStatus(if (gameForeground) "Screen capture aktif • MCGG terdeteksi" else "Screen capture aktif • menunggu MCGG di depan")
         } catch (error: Exception) {
             sendStatus("Gagal memulai analisis: ${error.localizedMessage}")
             stopSelf()
