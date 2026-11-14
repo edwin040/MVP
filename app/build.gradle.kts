@@ -8,8 +8,24 @@ android {
         applicationId = "com.mcgg.fasthand"
         minSdk = 26
         targetSdk = 29
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+    }
+
+    buildFeatures { buildConfig = true }
+
+    flavorDimensions += "edition"
+    productFlavors {
+        create("lite") {
+            dimension = "edition"
+            applicationIdSuffix = ".lite"
+            versionNameSuffix = "-lite"
+            buildConfigField("boolean", "ENABLE_FULL_FEATURES", "false")
+        }
+        create("full") {
+            dimension = "edition"
+            buildConfigField("boolean", "ENABLE_FULL_FEATURES", "true")
+        }
     }
 
     compileOptions {
@@ -17,9 +33,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    kotlinOptions { jvmTarget = "17" }
 }
 
 dependencies {
