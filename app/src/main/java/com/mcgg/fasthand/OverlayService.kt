@@ -110,6 +110,7 @@ class OverlayService : Service() {
         header.setOnTouchListener(dragListener())
         panel = box
         wm.addView(box, params())
+        refreshStatus()
     }
 
     private fun refreshStatus() {\n        status?.text = when {\n            enabled && gameForeground -> "● MCGG TERDETEKSI • AUTO ON"\n            !gameForeground -> "● TERKUNCI • BUKA MCGG"\n            else -> "● MCGG AKTIF • AUTO OFF"\n        }\n        toggle?.text = if (enabled) "OFF" else "ON"\n        toggle?.isEnabled = gameForeground\n        toggle?.alpha = if (gameForeground) 1f else 0.45f\n    }\n\n    private fun dragListener() = object : View.OnTouchListener {
