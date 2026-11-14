@@ -3,7 +3,6 @@ package com.mcgg.fasthand
 import android.content.Context
 import android.graphics.Rect
 import android.net.Uri
-import com.google.android.gms.tasks.Task
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
@@ -102,7 +101,7 @@ object HeroOcrAnalyzer {
         for (size in minWindow..maxWindow) {
             for (start in 0..(words.size - size)) {
                 val candidate = words.subList(start, start + size).joinToString("")
-                val score = similarity(candidate, target)
+                val score = similarity(candidate, target.replace(" ", ""))
                 if (score > best) best = score
             }
         }
