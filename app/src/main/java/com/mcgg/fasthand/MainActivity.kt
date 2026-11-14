@@ -4,11 +4,9 @@ import android.content.Intent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.IntentFilter
-import android.media.projection.MediaProjectionManager
 import android.app.Activity
 import android.net.Uri
 import android.os.Bundle
-import android.provider.Settings
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -20,7 +18,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.activity.result.contract.ActivityResultContracts
 import com.squareup.picasso.Picasso
 
@@ -62,33 +59,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val capturePermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-                val serviceIntent = Intent(this, ScreenCaptureService::class.java)
-                    .setAction(ScreenCaptureService.ACTION_START)
-                    .putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
-                    .putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, result.data)
-                ContextCompat.startForegroundService(this, serviceIntent)
-                ocrOutput.text = "Izin diberikan. AI lokal aktif; buka MCGG agar analisis dimulai."
-            } else {
-                ocrOutput.text = "Izin tangkapan layar dibatalkan. Tidak ada layar yang direkam."
-            }
-        }
-        captureReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                val message = intent?.getStringExtra(ScreenCaptureService.EXTRA_ANALYSIS) ?: return
-                ocrOutput.text = if (intent.getBooleanExtra(ScreenCaptureService.EXTRA_GAME_ACTIVE, false))
-                    "AI LOKAL • MCGG AKTIF\\n$message"
-                else message
-            }
-        }
-        val captureFilter = IntentFilter(ScreenCaptureService.ACTION_ANALYSIS)
-        if (android.os.Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(captureReceiver, captureFilter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(captureReceiver, captureFilter)
-        }
         val screenshotPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             if (uri != null) {
                 ocrOutput.text = "OCR sedang membaca screenshot..."
@@ -206,27 +176,7 @@ class MainActivity : AppCompatActivity() {
         }
         val ocrLp = LinearLayout.LayoutParams(-1, dp(46)); ocrLp.topMargin = dp(7)
         root.addView(ocrButton, ocrLp)
-        val liveCaptureButton = Button(this).apply {
-            text = "AKTIFKAN AI LOKAL • IZINKAN BACA LAYAR"; isAllCaps = false
-            background = rounded(0xFF176A60.toInt(), 14); setTextColor(Color.WHITE)
-        }
-        val liveLp = LinearLayout.LayoutParams(-1, dp(46)); liveLp.topMargin = dp(5)
-        root.addView(liveCaptureButton, liveLp)
-        liveCaptureButton.setOnClickListener {
-            val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            capturePermission.launch(manager.createScreenCaptureIntent())
-        }
-        val stopCaptureButton = Button(this).apply {
-            text = "HENTIKAN AI SCREEN ANALYSIS"; isAllCaps = false
-            background = rounded(0xFF75434A.toInt(), 12); setTextColor(Color.WHITE)
-        }
-        val stopLp = LinearLayout.LayoutParams(-1, dp(42)); stopLp.topMargin = dp(4)
-        root.addView(stopCaptureButton, stopLp)
-        stopCaptureButton.setOnClickListener {
-            startService(Intent(this, ScreenCaptureService::class.java).setAction(ScreenCaptureService.ACTION_STOP))
-            ocrOutput.text = "AI lokal dihentikan."
-        }
-        ocrOutput = text("AI lokal siap. Izinkan screen capture, aktifkan Accessibility, lalu buka MCGG. Frame dianalisis di RAM tanpa menyimpan screenshot.", 10.5f, 0xFFB8CAD8.toInt())
+        ocrOutput = text("Mode aman: OCR hanya memproses gambar yang kamu pilih sendiri. Tidak ada pemantauan layar, overlay, atau Accessibility.", 10.5f, 0xFFB8CAD8.toInt())
         ocrOutput.setPadding(dp(4), dp(8), dp(4), dp(8))
         root.addView(ocrOutput)
         val visualTitle = text("PENGENALAN HERO DARI GAMBAR", 13f, 0xFF78DCC0.toInt(), true)
@@ -292,46 +242,9 @@ class MainActivity : AppCompatActivity() {
                 .putBoolean("level9", levelNine.isChecked).apply()
             Toast.makeText(this, "Setup tersimpan • ${selected.size} hero", Toast.LENGTH_SHORT).show()
         }
-        val launch = Button(this).apply {
-            text = "BUKA FLOATING CONTROL"; isAllCaps = false
-            background = rounded(0xFF263E55.toInt(), 14); setTextColor(Color.WHITE)
-        }
-        val launchLp = LinearLayout.LayoutParams(-1, dp(48)); launchLp.topMargin = dp(8)
-        root.addView(launch, launchLp)
-        val accessibility = Button(this).apply {
-            text = "AKTIFKAN IZIN DETEKSI APLIKASI"; isAllCaps = false
-            background = rounded(0xFF34495E.toInt(), 14); setTextColor(Color.WHITE)
-        }
-        val accessLp = LinearLayout.LayoutParams(-1, dp(44)); accessLp.topMargin = dp(7)
-        root.addView(accessibility, accessLp)
-        if (!BuildConfig.ENABLE_FULL_FEATURES) {
-            launch.isEnabled = false
-            launch.alpha = 0.45f
-            launch.text = "FLOATING CONTROL • EDISI FULL"
-            accessibility.isEnabled = false
-            accessibility.alpha = 0.45f
-            accessibility.text = "AKSESIBILITAS TIDAK DIPAKAI DI LITE"
-        }
-        accessibility.setOnClickListener {
-            if (BuildConfig.ENABLE_FULL_FEATURES) startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        }
-        launch.setOnClickListener {
-            if (!BuildConfig.ENABLE_FULL_FEATURES) return@setOnClickListener
-            prefs.edit().putStringSet("selected_heroes", HashSet(selected))
-                .putInt("commander", commander.selectedItemPosition)
-                .putBoolean("level9", levelNine.isChecked).apply()
-            if (!Settings.canDrawOverlays(this)) {
-                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-            } else {
-                ContextCompat.startForegroundService(this, Intent(this, OverlayService::class.java))
-            }
-        }
-        val noteText = if (BuildConfig.ENABLE_FULL_FEATURES)
-            "Edisi Full memakai Accessibility dan floating overlay untuk deteksi aplikasi depan. Pengenalan papan dan aksi game otomatis belum tersedia."
-        else
-            "Edisi Lite tidak meminta izin Accessibility atau floating overlay. Setup hero dapat disimpan; kontrol mengambang tidak tersedia."
-        val note = text(noteText, 11f, 0xFF8FA5B6.toInt())
-        note.setPadding(dp(2), dp(10), dp(2), 0); root.addView(note)
+        val safeNote = text("Edisi aman: tidak memakai Accessibility Service, floating overlay, atau screen capture langsung. Analisis hanya dari gambar yang dipilih pengguna.", 11f, 0xFF8FA5B6.toInt())
+        safeNote.setPadding(dp(2), dp(10), dp(2), 0)
+        root.addView(safeNote)
         setContentView(root)
         renderHeroes(heroes)
         search.addTextChangedListener(object : TextWatcher {
@@ -344,10 +257,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        captureReceiver?.let {
-            try { unregisterReceiver(it) } catch (_: Exception) {}
-        }
-        captureReceiver = null
         super.onDestroy()
     }
 
