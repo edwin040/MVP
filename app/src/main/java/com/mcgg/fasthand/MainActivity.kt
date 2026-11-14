@@ -84,11 +84,11 @@ class MainActivity : AppCompatActivity() {
         }
         val visualPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             if (uri != null) {
-                val crop = readVisualCrop()
-                val heroName = visualHero.selectedItem?.toString().orEmpty()
                 visualOutput.text = "Memproses gambar referensi..."
                 Thread {
                     try {
+                        val crop = readVisualCrop()
+                        val heroName = visualHero.selectedItem?.toString().orEmpty()
                         if (visualAction == "enroll") {
                             HeroVisualMatcher.enroll(this, uri, heroName, crop)
                             runOnUiThread {
