@@ -59,7 +59,8 @@ class MainActivity : AppCompatActivity() {
                     onSuccess = { analysis ->
                         val lines = analysis.matches.take(8).map { match ->
                             val percent = (match.similarity * 100).toInt()
-                            "• ${match.heroName} — ${percent}% cocok (teks: ${match.recognizedText})"
+                            val position = match.bounds?.let { " • posisi ${it.centerX()},${it.centerY()}" } ?: ""
+                            "• ${match.heroName} — ${percent}% cocok${position} (teks: ${match.recognizedText})"
                         }
                         ocrOutput.text = if (lines.isEmpty()) {
                             "Belum ada nama hero yang cocok. Pastikan screenshot tajam dan nama hero terlihat.\nTeks OCR: ${analysis.fullText.take(180)}"
