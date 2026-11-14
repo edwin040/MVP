@@ -109,6 +109,15 @@ class MainActivity : AppCompatActivity() {
         }
         val launchLp = LinearLayout.LayoutParams(-1, dp(48)); launchLp.topMargin = dp(8)
         root.addView(launch, launchLp)
+        val accessibility = Button(this).apply {
+            text = "AKTIFKAN IZIN DETEKSI APLIKASI"; isAllCaps = false
+            background = rounded(0xFF34495E.toInt(), 14); setTextColor(Color.WHITE)
+        }
+        val accessLp = LinearLayout.LayoutParams(-1, dp(44)); accessLp.topMargin = dp(7)
+        root.addView(accessibility, accessLp)
+        accessibility.setOnClickListener {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
         launch.setOnClickListener {
             prefs.edit().putStringSet("selected_heroes", HashSet(selected))
                 .putInt("commander", commander.selectedItemPosition)
@@ -119,7 +128,7 @@ class MainActivity : AppCompatActivity() {
                 ContextCompat.startForegroundService(this, Intent(this, OverlayService::class.java))
             }
         }
-        val note = text("Info: pemilihan roster dan overlay tersedia. Deteksi layar dan aksi otomatis masih dikembangkan; ON belum menjalankan klik dalam game.", 11f, 0xFF8FA5B6.toInt())
+        val note = text("Deteksi aplikasi depan: aktifkan izin Aksesibilitas. Auto Roll akan terkunci otomatis di luar Magic Chess: Go Go; fungsi pengenalan papan dan aksi game masih dalam pengembangan.", 11f, 0xFF8FA5B6.toInt())
         note.setPadding(dp(2), dp(10), dp(2), 0); root.addView(note)
         setContentView(root)
         renderHeroes(heroes)
