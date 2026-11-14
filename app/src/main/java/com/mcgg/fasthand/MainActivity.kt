@@ -1,6 +1,11 @@
 package com.mcgg.fasthand
 
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
+import android.media.projection.MediaProjectionManager
+import android.app.Activity
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -56,6 +61,48 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val capturePermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+                val serviceIntent = Intent(this, ScreenCaptureService::class.java)
+                    .setAction(ScreenCaptureService.ACTION_START)
+                    .putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
+                    .putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, result.data)
+                ContextCompat.startForegroundService(this, serviceIntent)
+                ocrOutput.text = "Izin diberikan. Mengambil satu frame layar..."
+            } else {
+                ocrOutput.text = "Izin tangkapan layar dibatalkan. Tidak ada layar yang direkam."
+            }
+        }
+        val captureReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val error = intent?.getStringExtra("error")
+                val uriText = intent?.getStringExtra(ScreenCaptureService.EXTRA_IMAGE_URI)
+                if (error != null) {
+                    ocrOutput.text = "Screen capture gagal: $error"
+                } else if (uriText != null) {
+                    ocrOutput.text = "Frame berhasil diambil. Menjalankan OCR..."
+                    HeroOcrAnalyzer.analyze(
+                        this@MainActivity, Uri.parse(uriText), heroes.map { it.name },
+                        onSuccess = { analysis ->
+                            val rows = analysis.matches.take(10).map {
+                                "• ${it.heroName} — ${(it.similarity * 100).toInt()}% • ${it.estimatedZone}"
+                            }
+                            ocrOutput.text = if (rows.isEmpty())
+                                "Frame tertangkap, tetapi tidak ada nama hero yang terbaca. OCR: ${analysis.fullText.take(220)}"
+                            else "HASIL OCR LAYAR LANGSUNG (perlu verifikasi):\n" + rows.joinToString("\n")
+                        },
+                        onFailure = { ocrOutput.text = "OCR gagal: ${it.localizedMessage}" }
+                    )
+                }
+            }
+        }
+        val captureFilter = IntentFilter(ScreenCaptureService.ACTION_CAPTURED)
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(captureReceiver, captureFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(captureReceiver, captureFilter)
+        }
         val screenshotPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             if (uri != null) {
                 ocrOutput.text = "OCR sedang membaca screenshot..."
@@ -173,7 +220,17 @@ class MainActivity : AppCompatActivity() {
         }
         val ocrLp = LinearLayout.LayoutParams(-1, dp(46)); ocrLp.topMargin = dp(7)
         root.addView(ocrButton, ocrLp)
-        ocrOutput = text("Pengenalan hero: pilih screenshot MCGG untuk memulai pengujian OCR.", 10.5f, 0xFFB8CAD8.toInt())
+        val liveCaptureButton = Button(this).apply {
+            text = "IZINKAN & UJI BACA LAYAR LANGSUNG"; isAllCaps = false
+            background = rounded(0xFF176A60.toInt(), 14); setTextColor(Color.WHITE)
+        }
+        val liveLp = LinearLayout.LayoutParams(-1, dp(46)); liveLp.topMargin = dp(5)
+        root.addView(liveCaptureButton, liveLp)
+        liveCaptureButton.setOnClickListener {
+            val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            capturePermission.launch(manager.createScreenCaptureIntent())
+        }
+        ocrOutput = text("Pengenalan hero: pilih screenshot atau izinkan tangkapan layar satu kali untuk uji langsung.", 10.5f, 0xFFB8CAD8.toInt())
         ocrOutput.setPadding(dp(4), dp(8), dp(4), dp(8))
         root.addView(ocrOutput)
         val visualTitle = text("PENGENALAN HERO DARI GAMBAR", 13f, 0xFF78DCC0.toInt(), true)
