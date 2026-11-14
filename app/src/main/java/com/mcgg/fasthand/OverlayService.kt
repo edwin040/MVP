@@ -33,6 +33,8 @@ class OverlayService : Service() {
         showPanel()
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+
     private fun params() = WindowManager.LayoutParams(
         WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
         if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
@@ -95,6 +97,11 @@ class OverlayService : Service() {
         }
         panel = bubble
         wm.addView(bubble, params())
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // Keep the foreground overlay alive when the launcher task is swiped away.
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
