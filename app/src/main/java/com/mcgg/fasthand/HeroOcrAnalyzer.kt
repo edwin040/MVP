@@ -18,7 +18,10 @@ object HeroOcrAnalyzer {
         val heroName: String,
         val recognizedText: String,
         val similarity: Float,
-        val bounds: Rect?
+        val bounds: Rect?,
+        val estimatedZone: String,
+        val normalizedCenterX: Float,
+        val normalizedCenterY: Float
     )
 
     data class Analysis(
@@ -53,7 +56,10 @@ object HeroOcrAnalyzer {
                                     heroName = best.first,
                                     recognizedText = line.text,
                                     similarity = best.second,
-                                    bounds = line.boundingBox
+                                    bounds = line.boundingBox,
+                                    estimatedZone = estimateZone(line.boundingBox, image.width, image.height),
+                                    normalizedCenterX = normalizedCenter(line.boundingBox, image.width, true),
+                                    normalizedCenterY = normalizedCenter(line.boundingBox, image.height, false)
                                 )
                             }
                         }
@@ -67,6 +73,29 @@ object HeroOcrAnalyzer {
                 recognizer.close()
                 onFailure(error)
             }
+    }
+
+
+    /**
+     * Provisional landscape layout heuristic only. Coordinates are normalized so it scales
+     * across resolutions. It must not be used to trigger game actions until calibrated.
+     */
+    private fun normalizedCenter(bounds: Rect?, dimension: Int, horizontal: Boolean): Float {
+        if (bounds == null || dimension <= 0) return -1f
+        val center = if (horizontal) bounds.centerX() else bounds.centerY()
+        return (center.toFloat() / dimension).coerceIn(0f, 1f)
+    }
+
+    private fun estimateZone(bounds: Rect?, width: Int, height: Int): String {
+        if (bounds == null || width <= 0 || height <= 0) return "UNKNOWN"
+        if (width < height) return "UNKNOWN • PORTRAIT"
+        val y = bounds.centerY().toFloat() / height
+        return when {
+            y >= 0.80f && y <= 0.98f -> "SHOP? • PERKIRAAN"
+            y >= 0.65f && y < 0.80f -> "BENCH? • PERKIRAAN"
+            y >= 0.18f && y < 0.65f -> "BOARD? • PERKIRAAN"
+            else -> "UNKNOWN"
+        }
     }
 
     private fun bestMatch(line: Text.Line, knownHeroes: List<String>): Pair<String, Float>? {
