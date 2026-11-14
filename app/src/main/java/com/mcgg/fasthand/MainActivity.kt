@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
@@ -16,20 +17,29 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.squareup.picasso.Picasso
 
-data class HeroItem(val name: String, val image: String)
+data class HeroItem(val name: String, val gold: Int) {
+    val image: String get() = "https://loadoutgg.com/characters/magic-chess-gogo/${name.lowercase().replace(" ", "-").replace("'", "").replace(".", "-")}/1.png"
+}
 
 class MainActivity : AppCompatActivity() {
     private val prefs by lazy { getSharedPreferences("mcgg_config", MODE_PRIVATE) }
+    // Current MCGG roster (Season 7 database), not the full Mobile Legends roster.
     private val heroes = listOf(
-        "Akai","Angela","Alice","Alpha","Atlas","Aurora","Badang","Bane","Belerick","Beatrix",
-        "Chou","Claude","Cici","Dyrroth","Edith","Eudora","Fanny","Faramis","Franco","Freya",
-        "Gatotkaca","Gord","Granger","Grock","Guinevere","Harith","Harley","Hayabusa","Irithel",
-        "Johnson","Kadita","Karina","Karrie","Layla","Leomord","Ling","Lunox","Luo Yi","Martis",
-        "Mathilda","Melissa","Minotaur","Miya","Moskov","Nana","Natalia","Odette","Paquito",
-        "Phoveus","Roger","Saber","Sora","Thamuz","Tigreal","Vale","Vexana","Wanwan","X.Borg",
-        "Yin","Zhuxin","Zilong"
-    ).map { HeroItem(it, "https://raw.githubusercontent.com/Ceplin03/database-mlbb.Mobile-Legends-Bang-Bang/master/images-hero/${it.lowercase().replace(" ", "").replace(".", "").replace("luo yi", "luo_yi")}.png") }
-
+        HeroItem("Cici",1), HeroItem("Dyrroth",1), HeroItem("Eudora",1), HeroItem("Minotaur",1),
+        HeroItem("Phoveus",1), HeroItem("Uranus",1), HeroItem("Vale",1), HeroItem("Yi Sun-shin",1),
+        HeroItem("Angela",2), HeroItem("Balmond",2), HeroItem("Belerick",2), HeroItem("Granger",2),
+        HeroItem("Harley",2), HeroItem("Hylos",2), HeroItem("Luo Yi",2), HeroItem("Martis",2),
+        HeroItem("Miya",2), HeroItem("Natalia",2), HeroItem("Zhuxin",2),
+        HeroItem("Aldous",3), HeroItem("Clint",3), HeroItem("Edith",3), HeroItem("Franco",3),
+        HeroItem("Hilda",3), HeroItem("Kadita",3), HeroItem("Karina",3), HeroItem("Mathilda",3),
+        HeroItem("Paquito",3), HeroItem("Saber",3), HeroItem("Tigreal",3), HeroItem("Wanwan",3),
+        HeroItem("Atlas",4), HeroItem("Gord",4), HeroItem("Gusion",4), HeroItem("Irithel",4),
+        HeroItem("Karrie",4), HeroItem("Lolita",4), HeroItem("Lunox",4), HeroItem("Sora",4),
+        HeroItem("Suyou",4), HeroItem("Vexana",4), HeroItem("Yin",4), HeroItem("Zilong",4),
+        HeroItem("Alice",5), HeroItem("Badang",5), HeroItem("Baxia",5), HeroItem("Fanny",5),
+        HeroItem("Lancelot",5), HeroItem("Melissa",5), HeroItem("Nana",5), HeroItem("Odette",5),
+        HeroItem("Thamuz",5), HeroItem("Alpha",7)
+    )
     private val selected = linkedSetOf<String>()
     private lateinit var grid: GridLayout
     private lateinit var search: EditText
@@ -42,59 +52,75 @@ class MainActivity : AppCompatActivity() {
         selected.addAll(prefs.getStringSet("selected_heroes", emptySet()) ?: emptySet())
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(18, 20, 18, 20)
-            setBackgroundColor(Color.rgb(12, 20, 30))
+            setPadding(dp(18), dp(18), dp(18), dp(16))
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(0xFF0A1422.toInt(), 0xFF14283A.toInt())).apply { cornerRadius = dp(22).toFloat() }
         }
-        fun label(value: String, size: Float = 14f) = TextView(this).apply {
-            text = value; textSize = size; setTextColor(Color.WHITE)
-            setPadding(0, 9, 0, 7)
-        }
-        root.addView(label("MCGG FAST HAND", 25f))
-        root.addView(label("Pilih target dari portrait hero. Ketuk kartu untuk LOCK / batal LOCK."))
+        fun text(value: String, size: Float, color: Int = Color.WHITE, bold: Boolean = false) =
+            TextView(this).apply {
+                text = value; textSize = size; setTextColor(color)
+                if (bold) setTypeface(null, Typeface.BOLD)
+            }
+        val title = text("MCGG FAST HAND", 25f, 0xFFECF7FF.toInt(), true)
+        root.addView(title)
+        val subtitle = text("Pilih hero target dari roster Magic Chess: Go Go", 13f, 0xFFA9C0D2.toInt())
+        root.addView(subtitle)
+        val count = text("SEASON 7  •  53 HERO DATABASE", 11f, 0xFF65D6B0.toInt(), true)
+        count.setPadding(0, dp(10), 0, dp(10)); root.addView(count)
         search = EditText(this).apply {
-            hint = "Cari hero..."; setSingleLine(true)
-            setTextColor(Color.WHITE); setHintTextColor(0xFF9AA7B2.toInt())
-            setPadding(14, 8, 14, 8)
-            setBackgroundColor(0xFF1B2B3B.toInt())
+            hint = "⌕  Cari hero MCGG"; setSingleLine(true)
+            textSize = 14f; setTextColor(Color.WHITE); setHintTextColor(0xFF91A6B7.toInt())
+            setPadding(dp(14), 0, dp(14), 0)
+            background = rounded(0xFF1B3043.toInt(), 14)
         }
-        root.addView(search, LinearLayout.LayoutParams(-1, 52))
-        selectedLabel = label("")
-        root.addView(selectedLabel)
-        val gridScroll = ScrollView(this)
-        grid = GridLayout(this).apply { columnCount = 3; useDefaultMargins = true }
-        gridScroll.addView(grid)
-        root.addView(gridScroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(label("COMMANDER"))
+        root.addView(search, LinearLayout.LayoutParams(-1, dp(48)))
+        selectedLabel = text("", 12f, 0xFF77E3C1.toInt(), true)
+        selectedLabel.setPadding(dp(2), dp(10), dp(2), dp(10)); root.addView(selectedLabel)
+        val scroll = ScrollView(this).apply { isFillViewport = false }
+        grid = GridLayout(this).apply { columnCount = 3; useDefaultMargins = false }
+        scroll.addView(grid)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(text("COMMANDER", 11f, 0xFF91A6B7.toInt(), true))
         commander = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
-                listOf("Pilih Commander", "Guinevere", "Lainnya"))
+                listOf("Pilih Commander", "Guinevere", "Nana", "Minotaur", "Brody", "Franco", "Lylia", "Lukas", "Commander lain"))
             setSelection(prefs.getInt("commander", 0))
         }
         root.addView(commander)
         levelNine = CheckBox(this).apply {
-            text = "Saya sudah mencapai level 9 (konfirmasi manual)"
-            setTextColor(Color.WHITE); isChecked = prefs.getBoolean("level9", false)
+            text = "Konfirmasi: Commander level 9"; textSize = 12f
+            setTextColor(0xFFD9E8F3.toInt()); isChecked = prefs.getBoolean("level9", false)
         }
         root.addView(levelNine)
-        val save = Button(this).apply { text = "SIMPAN PILIHAN HERO" }
-        root.addView(save)
+        val save = Button(this).apply {
+            text = "SIMPAN SETUP"; isAllCaps = false
+            background = rounded(0xFF168D78.toInt(), 14); setTextColor(Color.WHITE)
+        }
+        root.addView(save, LinearLayout.LayoutParams(-1, dp(48)))
         save.setOnClickListener {
             prefs.edit().putStringSet("selected_heroes", HashSet(selected))
                 .putInt("commander", commander.selectedItemPosition)
                 .putBoolean("level9", levelNine.isChecked).apply()
-            Toast.makeText(this, "Pilihan tersimpan: ${selected.size} hero", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Setup tersimpan • ${selected.size} hero", Toast.LENGTH_SHORT).show()
         }
-        val launch = Button(this).apply { text = "JALANKAN FLOATING PANEL" }
-        root.addView(launch)
+        val launch = Button(this).apply {
+            text = "BUKA FLOATING CONTROL"; isAllCaps = false
+            background = rounded(0xFF263E55.toInt(), 14); setTextColor(Color.WHITE)
+        }
+        val launchLp = LinearLayout.LayoutParams(-1, dp(48)); launchLp.topMargin = dp(8)
+        root.addView(launch, launchLp)
         launch.setOnClickListener {
+            prefs.edit().putStringSet("selected_heroes", HashSet(selected))
+                .putInt("commander", commander.selectedItemPosition)
+                .putBoolean("level9", levelNine.isChecked).apply()
             if (!Settings.canDrawOverlays(this)) {
                 startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
             } else {
                 ContextCompat.startForegroundService(this, Intent(this, OverlayService::class.java))
-                Toast.makeText(this, "Panel mengambang dimulai", Toast.LENGTH_SHORT).show()
             }
         }
-        root.addView(label("Catatan: pemilihan hero dan floating panel sudah tersedia. Pembacaan layar dan auto-tap masih tahap pengembangan; tombol ON belum menjalankan aksi dalam game.", 12f))
+        val note = text("Info: pemilihan roster dan overlay tersedia. Deteksi layar dan aksi otomatis masih dikembangkan; ON belum menjalankan klik dalam game.", 11f, 0xFF8FA5B6.toInt())
+        note.setPadding(dp(2), dp(10), dp(2), 0); root.addView(note)
         setContentView(root)
         renderHeroes(heroes)
         search.addTextChangedListener(object : TextWatcher {
@@ -109,11 +135,11 @@ class MainActivity : AppCompatActivity() {
     private fun renderHeroes(items: List<HeroItem>) {
         grid.removeAllViews()
         items.forEach { hero ->
-            val isSelected = selected.contains(hero.name)
+            val chosen = selected.contains(hero.name)
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-                setPadding(5, 5, 5, 7)
-                setBackgroundColor(if (isSelected) 0xFF155E59.toInt() else 0xFF1B2B3B.toInt())
+                setPadding(dp(5), dp(5), dp(5), dp(6))
+                background = rounded(if (chosen) 0xFF176A60.toInt() else 0xFF1A2D40.toInt(), 13)
             }
             val image = ImageView(this).apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP
@@ -122,32 +148,34 @@ class MainActivity : AppCompatActivity() {
             Picasso.get().load(hero.image).fit().centerCrop()
                 .placeholder(android.R.drawable.ic_menu_gallery)
                 .error(android.R.drawable.ic_menu_report_image).into(image)
-            card.addView(image, LinearLayout.LayoutParams(dp(88), dp(88)))
+            card.addView(image, LinearLayout.LayoutParams(dp(82), dp(82)))
             val name = TextView(this).apply {
-                text = if (isSelected) "✓ ${hero.name}" else hero.name
-                setTextColor(Color.WHITE); textSize = 12f; gravity = Gravity.CENTER
-                setTypeface(null, if (isSelected) Typeface.BOLD else Typeface.NORMAL)
-                maxLines = 1
+                text = (if (chosen) "✓ " else "") + hero.name
+                setTextColor(Color.WHITE); textSize = 11f; gravity = Gravity.CENTER
+                setTypeface(null, if (chosen) Typeface.BOLD else Typeface.NORMAL); maxLines = 1
             }
-            card.addView(name, LinearLayout.LayoutParams(-1, dp(30)))
+            card.addView(name, LinearLayout.LayoutParams(-1, dp(25)))
+            val gold = TextView(this).apply {
+                text = if (hero.gold == 7) "7 GOLD" else "${hero.gold} GOLD"
+                textSize = 9f; gravity = Gravity.CENTER; setTextColor(0xFFFFD58A.toInt())
+            }
+            card.addView(gold, LinearLayout.LayoutParams(-1, dp(16)))
             card.setOnClickListener {
                 if (!selected.add(hero.name)) selected.remove(hero.name)
                 renderHeroes(heroes.filter { it.name.contains(search.text.toString(), true) })
-                updateSelectedLabel()
             }
             val lp = GridLayout.LayoutParams().apply {
                 width = 0; height = ViewGroup.LayoutParams.WRAP_CONTENT
                 columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-                setMargins(dp(3), dp(3), dp(3), dp(3))
+                setMargins(dp(3), dp(3), dp(3), dp(5))
             }
             grid.addView(card, lp)
         }
-        updateSelectedLabel()
+        selectedLabel.text = "LOCKED: ${selected.size} HERO"
     }
 
-    private fun updateSelectedLabel() {
-        selectedLabel.text = "HERO TERKUNCI: ${selected.size} • " +
-            if (selected.isEmpty()) "Belum ada pilihan" else selected.joinToString(", ")
+    private fun rounded(color: Int, radius: Int) = GradientDrawable().apply {
+        setColor(color); cornerRadius = dp(radius).toFloat()
     }
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 }
