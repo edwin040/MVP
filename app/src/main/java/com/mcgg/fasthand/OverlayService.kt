@@ -113,7 +113,18 @@ class OverlayService : Service() {
         refreshStatus()
     }
 
-    private fun refreshStatus() {\n        status?.text = when {\n            enabled && gameForeground -> "● MCGG TERDETEKSI • AUTO ON"\n            !gameForeground -> "● TERKUNCI • BUKA MCGG"\n            else -> "● MCGG AKTIF • AUTO OFF"\n        }\n        toggle?.text = if (enabled) "OFF" else "ON"\n        toggle?.isEnabled = gameForeground\n        toggle?.alpha = if (gameForeground) 1f else 0.45f\n    }\n\n    private fun dragListener() = object : View.OnTouchListener {
+    private fun refreshStatus() {
+        status?.text = when {
+            enabled && gameForeground -> "● MCGG TERDETEKSI • AUTO ON"
+            !gameForeground -> "● TERKUNCI • BUKA MCGG"
+            else -> "● MCGG AKTIF • AUTO OFF"
+        }
+        toggle?.text = if (enabled) "OFF" else "ON"
+        toggle?.isEnabled = gameForeground
+        toggle?.alpha = if (gameForeground) 1f else 0.45f
+    }
+
+    private fun dragListener() = object : View.OnTouchListener {
         var sx=0f; var sy=0f; var ox=0; var oy=0
         override fun onTouch(v: View, e: MotionEvent): Boolean {
             val lp = panel?.layoutParams as? WindowManager.LayoutParams ?: return false
