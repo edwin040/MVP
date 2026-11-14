@@ -26,7 +26,9 @@ object AutoRollStrategy {
         val zone: Zone,
         val confidence: Float,
         val isFree: Boolean = false,
-        val slot: Int = -1
+        val slot: Int = -1,
+        /** Price read from the current shop frame; null means unknown. */
+        val price: Int? = null
     )
 
     data class MatchSnapshot(
@@ -36,7 +38,12 @@ object AutoRollStrategy {
         val heroes: List<HeroDetection>,
         val lockedHeroes: Set<String>,
         val incompleteTargets: Set<String>,
-        val autoEnabled: Boolean
+        val autoEnabled: Boolean,
+        /** Gold must come from a stable, validated HUD reading. */
+        val goldAmount: Int? = null,
+        val goldConfidence: Float = 0f,
+        /** Never assume game costs: caller must supply verified values. */
+        val refreshCost: Int? = null
     )
 
     data class PlannedAction(
@@ -49,6 +56,15 @@ object AutoRollStrategy {
 
     private const val HERO_CONFIDENCE = 0.97f
     private const val COMMANDER_CONFIDENCE = 0.97f
+    private const val GOLD_CONFIDENCE = 0.95f
+
+    private fun goldIsReliable(snapshot: MatchSnapshot): Boolean =
+        snapshot.goldAmount != null && snapshot.goldAmount >= 0 &&
+            snapshot.goldConfidence >= GOLD_CONFIDENCE
+
+    private fun waitForGold(reason: String) = listOf(
+        PlannedAction(ActionType.WAIT_FOR_RECOGNITION, reason = reason)
+    )
 
     private fun normalized(value: String): String =
         value.trim().lowercase().replace(Regex("[^a-z0-9]"), "")
@@ -113,9 +129,17 @@ object AutoRollStrategy {
                 isLocked(it.name, snapshot.lockedHeroes)
         }
         if (target != null) {
+            if (!goldIsReliable(snapshot)) {
+                return waitForGold("Gold belum terbaca stabil; pembelian ditahan demi keamanan")
+            }
+            val price = target.price
+                ?: return waitForGold("Harga hero belum terbaca; pembelian ditahan")
+            if (snapshot.goldAmount!! < price) {
+                return waitForGold("Gold tidak cukup untuk membeli ${target.name}")
+            }
             return listOf(PlannedAction(
                 ActionType.BUY_LOCKED_HERO, target.name, Zone.SHOP, target.slot,
-                "Hero target LOCK ditemukan; beli satu lalu verifikasi ulang"
+                "Gold dan harga terverifikasi; beli satu lalu verifikasi ulang"
             ))
         }
 
@@ -132,9 +156,17 @@ object AutoRollStrategy {
                 reason = "Hero gratis Guinevere belum dikenali dengan yakin"))
         }
 
+        if (!goldIsReliable(snapshot)) {
+            return waitForGold("Gold belum terbaca stabil; refresh ditahan demi keamanan")
+        }
+        val refreshCost = snapshot.refreshCost
+            ?: return waitForGold("Biaya refresh belum dikonfigurasi/terverifikasi")
+        if (snapshot.goldAmount!! < refreshCost) {
+            return waitForGold("Gold tidak cukup untuk refresh shop")
+        }
         return listOf(PlannedAction(
             ActionType.REFRESH_SHOP,
-            reason = "Tidak ada target LOCK atau hero gratis yang perlu diproses"
+            reason = "Gold mencukupi dan biaya refresh terverifikasi"
         ))
     }
 
