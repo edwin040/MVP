@@ -69,35 +69,20 @@ class MainActivity : AppCompatActivity() {
                     .putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
                     .putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, result.data)
                 ContextCompat.startForegroundService(this, serviceIntent)
-                ocrOutput.text = "Izin diberikan. Mengambil satu frame layar..."
+                ocrOutput.text = "Izin diberikan. AI lokal aktif; buka MCGG agar analisis dimulai."
             } else {
                 ocrOutput.text = "Izin tangkapan layar dibatalkan. Tidak ada layar yang direkam."
             }
         }
         captureReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                val error = intent?.getStringExtra("error")
-                val uriText = intent?.getStringExtra(ScreenCaptureService.EXTRA_IMAGE_URI)
-                if (error != null) {
-                    ocrOutput.text = "Screen capture gagal: $error"
-                } else if (uriText != null) {
-                    ocrOutput.text = "Frame berhasil diambil. Menjalankan OCR..."
-                    HeroOcrAnalyzer.analyze(
-                        this@MainActivity, Uri.parse(uriText), heroes.map { it.name },
-                        onSuccess = { analysis ->
-                            val rows = analysis.matches.take(10).map {
-                                "• ${it.heroName} — ${(it.similarity * 100).toInt()}% • ${it.estimatedZone}"
-                            }
-                            ocrOutput.text = if (rows.isEmpty())
-                                "Frame tertangkap, tetapi tidak ada nama hero yang terbaca. OCR: ${analysis.fullText.take(220)}"
-                            else "HASIL OCR LAYAR LANGSUNG (perlu verifikasi):\n" + rows.joinToString("\n")
-                        },
-                        onFailure = { ocrOutput.text = "OCR gagal: ${it.localizedMessage}" }
-                    )
-                }
+                val message = intent?.getStringExtra(ScreenCaptureService.EXTRA_ANALYSIS) ?: return
+                ocrOutput.text = if (intent.getBooleanExtra(ScreenCaptureService.EXTRA_GAME_ACTIVE, false))
+                    "AI LOKAL • MCGG AKTIF\\n$message"
+                else message
             }
         }
-        val captureFilter = IntentFilter(ScreenCaptureService.ACTION_CAPTURED)
+        val captureFilter = IntentFilter(ScreenCaptureService.ACTION_ANALYSIS)
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             registerReceiver(captureReceiver, captureFilter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -222,7 +207,7 @@ class MainActivity : AppCompatActivity() {
         val ocrLp = LinearLayout.LayoutParams(-1, dp(46)); ocrLp.topMargin = dp(7)
         root.addView(ocrButton, ocrLp)
         val liveCaptureButton = Button(this).apply {
-            text = "IZINKAN & UJI BACA LAYAR LANGSUNG"; isAllCaps = false
+            text = "AKTIFKAN AI LOKAL • IZINKAN BACA LAYAR"; isAllCaps = false
             background = rounded(0xFF176A60.toInt(), 14); setTextColor(Color.WHITE)
         }
         val liveLp = LinearLayout.LayoutParams(-1, dp(46)); liveLp.topMargin = dp(5)
@@ -231,7 +216,17 @@ class MainActivity : AppCompatActivity() {
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             capturePermission.launch(manager.createScreenCaptureIntent())
         }
-        ocrOutput = text("Pengenalan hero: pilih screenshot atau izinkan tangkapan layar satu kali untuk uji langsung.", 10.5f, 0xFFB8CAD8.toInt())
+        val stopCaptureButton = Button(this).apply {
+            text = "HENTIKAN AI SCREEN ANALYSIS"; isAllCaps = false
+            background = rounded(0xFF75434A.toInt(), 12); setTextColor(Color.WHITE)
+        }
+        val stopLp = LinearLayout.LayoutParams(-1, dp(42)); stopLp.topMargin = dp(4)
+        root.addView(stopCaptureButton, stopLp)
+        stopCaptureButton.setOnClickListener {
+            startService(Intent(this, ScreenCaptureService::class.java).setAction(ScreenCaptureService.ACTION_STOP))
+            ocrOutput.text = "AI lokal dihentikan."
+        }
+        ocrOutput = text("AI lokal siap. Izinkan screen capture, aktifkan Accessibility, lalu buka MCGG. Frame dianalisis di RAM tanpa menyimpan screenshot.", 10.5f, 0xFFB8CAD8.toInt())
         ocrOutput.setPadding(dp(4), dp(8), dp(4), dp(8))
         root.addView(ocrOutput)
         val visualTitle = text("PENGENALAN HERO DARI GAMBAR", 13f, 0xFF78DCC0.toInt(), true)
