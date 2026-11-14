@@ -29,6 +29,47 @@ object HeroOcrAnalyzer {
         val matches: List<HeroMatch>
     )
 
+    fun analyzeBitmap(
+        bitmap: android.graphics.Bitmap,
+        knownHeroes: List<String>,
+        onSuccess: (Analysis) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        val image = InputImage.fromBitmap(bitmap, 0)
+        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        recognizer.process(image)
+            .addOnSuccessListener { result ->
+                try {
+                    val matches = mutableListOf<HeroMatch>()
+                    result.textBlocks.forEach { block ->
+                        block.lines.forEach lineLoop@{ line ->
+                            val best = bestMatch(line, knownHeroes) ?: return@lineLoop
+                            if (best.second >= MIN_SIMILARITY) {
+                                matches += HeroMatch(
+                                    heroName = best.first,
+                                    recognizedText = line.text,
+                                    similarity = best.second,
+                                    bounds = line.boundingBox,
+                                    estimatedZone = estimateZone(line.boundingBox, image.width, image.height),
+                                    normalizedCenterX = normalizedCenter(line.boundingBox, image.width, true),
+                                    normalizedCenterY = normalizedCenter(line.boundingBox, image.height, false)
+                                )
+                            }
+                        }
+                    }
+                    onSuccess(Analysis(result.text, matches.sortedByDescending { it.similarity }))
+                } catch (error: Exception) {
+                    onFailure(error)
+                } finally {
+                    recognizer.close()
+                }
+            }
+            .addOnFailureListener { error ->
+                recognizer.close()
+                onFailure(error)
+            }
+    }
+
     fun analyze(
         context: Context,
         imageUri: Uri,
