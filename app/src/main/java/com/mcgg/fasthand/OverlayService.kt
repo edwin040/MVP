@@ -75,7 +75,7 @@ class OverlayService : Service() {
                 val lp = panel?.layoutParams as? WindowManager.LayoutParams ?: return false
                 when (e.action) {
                     MotionEvent.ACTION_DOWN -> { sx=e.rawX; sy=e.rawY; ox=lp.x; oy=lp.y; return true }
-                    MotionEvent.ACTION_MOVE -> { lp.x=ox-(e.rawX-sx).toInt(); lp.y=oy+(e.rawY-sy).toInt(); wm.updateViewLayout(panel,lp); return true }
+                    MotionEvent.ACTION_MOVE -> { lp.x=ox-(e.rawX-sx).toInt(); lp.y=oy+(e.rawY-sy).toInt(); wm.updateViewLayout(v,lp); return true }
                 }
                 return false
             }
