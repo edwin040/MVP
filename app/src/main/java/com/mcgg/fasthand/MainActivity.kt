@@ -58,6 +58,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cropFields: List<EditText>
     private lateinit var visualHero: Spinner
     private var visualAction: String = "enroll"
+    private var captureReceiver: BroadcastReceiver? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,7 +74,7 @@ class MainActivity : AppCompatActivity() {
                 ocrOutput.text = "Izin tangkapan layar dibatalkan. Tidak ada layar yang direkam."
             }
         }
-        val captureReceiver = object : BroadcastReceiver() {
+        captureReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 val error = intent?.getStringExtra("error")
                 val uriText = intent?.getStringExtra(ScreenCaptureService.EXTRA_IMAGE_URI)
@@ -345,6 +346,14 @@ class MainActivity : AppCompatActivity() {
             }
             override fun afterTextChanged(s: Editable?) {}
         })
+    }
+
+    override fun onDestroy() {
+        captureReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) {}
+        }
+        captureReceiver = null
+        super.onDestroy()
     }
 
     private fun readVisualCrop(): RectF {
