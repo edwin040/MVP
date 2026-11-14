@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
         "Mathilda","Melissa","Minotaur","Miya","Moskov","Nana","Natalia","Odette","Paquito",
         "Phoveus","Roger","Saber","Sora","Thamuz","Tigreal","Vale","Vexana","Wanwan","X.Borg",
         "Yin","Zhuxin","Zilong"
-    ).map { HeroItem(it, "https://raw.githubusercontent.com/Ceplin03/database-mlbb.Mobile-Legends-Bang-Bang/master/images-hero/${it.lowercase().replace(" ", "").replace(".", "")}.png") }
+    ).map { HeroItem(it, "https://raw.githubusercontent.com/Ceplin03/database-mlbb.Mobile-Legends-Bang-Bang/master/images-hero/${it.lowercase().replace(" ", "").replace(".", "").replace("luo yi", "luo_yi")}.png") }
 
     private val selected = linkedSetOf<String>()
     private lateinit var grid: GridLayout
