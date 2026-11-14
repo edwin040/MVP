@@ -60,12 +60,15 @@ class MainActivity : AppCompatActivity() {
                         val lines = analysis.matches.take(8).map { match ->
                             val percent = (match.similarity * 100).toInt()
                             val position = match.bounds?.let { " • posisi ${it.centerX()},${it.centerY()}" } ?: ""
-                            "• ${match.heroName} — ${percent}% cocok${position} (teks: ${match.recognizedText})"
+                            val zone = match.estimatedZone
+                            val normalized = if (match.normalizedCenterX >= 0f && match.normalizedCenterY >= 0f)
+                                " • relatif ${"%.2f".format(match.normalizedCenterX)},${"%.2f".format(match.normalizedCenterY)}" else ""
+                            "• ${match.heroName} — ${percent}% cocok • ${zone}${position}${normalized} (teks: ${match.recognizedText})"
                         }
                         ocrOutput.text = if (lines.isEmpty()) {
                             "Belum ada nama hero yang cocok. Pastikan screenshot tajam dan nama hero terlihat.\nTeks OCR: ${analysis.fullText.take(180)}"
                         } else {
-                            "HASIL PENGENALAN HERO (perlu verifikasi):\n" + lines.joinToString("\n")
+                            "HASIL HERO & ZONA (zona hanya perkiraan):\n" + lines.joinToString("\n")
                         }
                     },
                     onFailure = { error ->
